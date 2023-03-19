@@ -23,11 +23,11 @@ func CommandHandlers(deps commandHandlersDeps) map[string]func(s *discordgo.Sess
 	return map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate){
 		"gpt": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			requestId, err := uuid.NewV6()
-			if err == nil {
+			if err != nil {
 				panic(err)
 			}
 			entry := deps.Logger.With(
-				"request_id", requestId.String(),
+				"requestID", requestId.String(),
 				"user", i.Member.User.String(),
 				"command", "gtp",
 			)
