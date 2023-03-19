@@ -1,12 +1,11 @@
 package bootstrap
 
 import (
-	"log"
-
 	discordmod "github.com/airdb/scout/modules/discord"
 	openaimod "github.com/airdb/scout/modules/openai"
 	"github.com/bwmarrin/discordgo"
 	"go.uber.org/fx"
+	"golang.org/x/exp/slog"
 )
 
 type discordDeps struct {
@@ -17,18 +16,21 @@ type discordDeps struct {
 	Commands        []*discordgo.ApplicationCommand
 	CommandHandlers map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate)
 
+	Logger  *slog.Logger
 	ChatGpt *openaimod.ChatGpt
 }
 
 type Discord struct {
 	deps               *discordDeps
 	registeredCommands []*discordgo.ApplicationCommand
+	logger             *slog.Logger
 }
 
 func NewDiscord(deps discordDeps) *Discord {
 
 	return &Discord{
 		deps:               &deps,
+		logger:             deps.Logger,
 		registeredCommands: make([]*discordgo.ApplicationCommand, 0),
 	}
 }
@@ -48,7 +50,10 @@ func (d *Discord) init() error {
 	d.deps.Session.Identify.Intents |= discordgo.IntentMessageContent
 
 	d.deps.Session.AddHandler(func(s *discordgo.Session, r *discordgo.Ready) {
-		log.Printf("Logged in as: %v#%v", s.State.User.Username, s.State.User.Discriminator)
+		d.logger.With(
+			"username", s.State.User.Username,
+			"discriminator", s.State.User.Discriminator,
+		).Info("Logged in")
 	})
 
 	return nil
@@ -58,23 +63,23 @@ func (d *Discord) Start() error {
 	var err error
 	err = d.init()
 	if err != nil {
-		log.Fatalf("Cannot init the session: %v", err)
+		d.logger.With("error", err).Error("Cannot init the session")
 		return err
 	}
 
 	err = d.deps.Session.Open()
 	if err != nil {
-		log.Fatalf("Cannot open the session: %v", err)
+		d.logger.With("error", err).Error("Cannot open the session")
 		return err
 	}
 
-	log.Println("Adding commands...")
+	d.logger.Info("Adding commands...")
 	registeredCommands := make([]*discordgo.ApplicationCommand, len(d.deps.Commands))
 	for i, v := range d.deps.Commands {
 		cmd, err := d.deps.Session.ApplicationCommandCreate(
 			d.deps.Session.State.User.ID, d.deps.Cfg.GuildId, v)
 		if err != nil {
-			log.Panicf("Cannot create '%v' command: %v", v.Name, err)
+			d.logger.With("command", v.Name, "error", err).Error("Cannot create command")
 			return nil
 		}
 		registeredCommands[i] = cmd
@@ -88,27 +93,27 @@ func (d *Discord) Stop() error {
 	defer d.deps.Session.Close()
 
 	if d.deps.Cfg.RemoveCommands {
-		log.Println("Removing commands...")
+		d.logger.Info("Removing commands...")
 		// // We need to fetch the commands, since deleting requires the command ID.
 		// // We are doing this from the returned commands on line 375, because using
 		// // this will delete all the commands, which might not be desirable, so we
 		// // are deleting only the commands that we added.
 		// registeredCommands, err := s.ApplicationCommands(s.State.User.ID, *GuildID)
 		// if err != nil {
-		// 	log.Fatalf("Could not fetch registered commands: %v", err)
+		// 	d.logger.With("error", err).Error("Could not fetch registered commands: %v", err)
 		// }
 
 		for _, v := range d.registeredCommands {
 			err := d.deps.Session.ApplicationCommandDelete(
 				d.deps.Session.State.User.ID, d.deps.Cfg.GuildId, v.ID)
 			if err != nil {
-				log.Panicf("Cannot delete '%v' command: %v", v.Name, err)
+				d.logger.With("command", v.Name, "error", err).Error("Cannot delete command")
 				return err
 			}
 		}
 	}
 
-	log.Println("Gracefully shutting down.")
+	d.logger.Info("Gracefully shutting down.")
 
 	return nil
 }
@@ -130,7 +135,7 @@ func (d *Discord) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate
 	default:
 		// msg, err := d.deps.ChatGpt.GetResponse(context.TODO(), m.Content)
 		// if err != nil {
-		// 	log.Panicf("%s", err)
+		// 	d.logger.Panicf("%s", err)
 		// }
 		// if len(msg) > 0 {
 		// 	s.ChannelMessageSend(m.ChannelID, msg)

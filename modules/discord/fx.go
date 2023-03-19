@@ -2,7 +2,6 @@ package discordmod
 
 import (
 	"os"
-	"time"
 
 	"github.com/bwmarrin/discordgo"
 	"go.uber.org/fx"
@@ -19,7 +18,6 @@ func FxOptions() fx.Option {
 		}),
 		fx.Provide(func(cfg *Config) (*discordgo.Session, error) {
 			ds, err := discordgo.New("Bot " + cfg.BotToken)
-			ds.Client.Timeout = 60 * time.Second
 			return ds, err
 		}),
 		fx.Provide(func() ([]*discordgo.ApplicationCommand, error) {
