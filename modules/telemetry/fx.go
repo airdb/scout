@@ -27,6 +27,9 @@ func FxOptions() fx.Option {
 					"service":  "scout",
 					"instance": instanceId.String(),
 				}),
+				lokikit.WithFields([]string{
+					"level", "requestID", "user", "command",
+				}),
 			)
 			if err != nil {
 				return nil, err

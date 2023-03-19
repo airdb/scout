@@ -73,7 +73,7 @@ func (d *Discord) Start() error {
 		return err
 	}
 
-	d.logger.Info("Adding commands...")
+	d.logger.Info("Adding commands")
 	registeredCommands := make([]*discordgo.ApplicationCommand, len(d.deps.Commands))
 	for i, v := range d.deps.Commands {
 		cmd, err := d.deps.Session.ApplicationCommandCreate(

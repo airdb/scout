@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/samber/lo"
 )
 
 const (
@@ -40,6 +42,7 @@ type lokiEntry struct {
 	Timestamp time.Time
 	Line      []byte
 	Content   string
+	Fields    map[string]string
 }
 
 type LokiWriterOption func(h *LokiWriter)
@@ -62,6 +65,17 @@ func WithLabels(kv map[string]string) LokiWriterOption {
 	}
 }
 
+func WithFields(fields []string) LokiWriterOption {
+	return func(h *LokiWriter) {
+		for _, field := range fields {
+			if lo.IndexOf(h.config.Fields, field) != -1 {
+				continue
+			}
+			h.config.Fields = append(h.config.Fields, field)
+		}
+	}
+}
+
 func NewLokiWriter(
 	rootUrl string, timeOffset int64, opts ...LokiWriterOption,
 ) (*LokiWriter, error) {
@@ -70,6 +84,7 @@ func NewLokiWriter(
 		BatchWait:          time.Second * 2,
 		BatchEntriesNumber: 1024,
 		Labels:             map[string]string{},
+		Fields:             []string{},
 	}
 	writer := &LokiWriter{
 		config:  conf,
@@ -92,7 +107,8 @@ var _ io.Writer = &LokiWriter{}
 
 func (h *LokiWriter) Write(p []byte) (n int, err error) {
 	h.entries <- lokiEntry{
-		Line: append([]byte{}, p...),
+		Line:   append([]byte{}, p...),
+		Fields: make(map[string]string),
 	}
 
 	return len(p), nil
@@ -104,7 +120,7 @@ func (h *LokiWriter) Shutdown() {
 }
 
 func (h *LokiWriter) run() {
-	var batch [][]string
+	var batch []lokiEntry
 	batchSize := 0
 	defer func() {
 		if batchSize > 0 {
@@ -119,11 +135,7 @@ func (h *LokiWriter) run() {
 		case <-h.quit:
 			return
 		case entry := <-h.entries:
-			e := parseEntry(entry)
-			batch = append(batch, []string{
-				strconv.FormatInt(e.Timestamp.UnixNano(), 10),
-				string(e.Content),
-			})
+			batch = append(batch, h.parseEntry(entry))
 			batchSize++
 			if batchSize >= h.config.BatchEntriesNumber {
 				h.send(batch)
@@ -142,14 +154,22 @@ func (h *LokiWriter) run() {
 	}
 }
 
-func (h *LokiWriter) send(entries [][]string) {
+func (h *LokiWriter) send(entries []lokiEntry) {
 	req := lokiPushRequest{
-		Streams: []lokiStreamAdapter{
-			{
-				Stream: h.config.Labels,
-				Values: entries,
-			},
-		},
+		Streams: make([]lokiStreamAdapter, 0, len(entries)),
+	}
+	for _, entity := range entries {
+		for k, v := range h.config.Labels {
+			entity.Fields[k] = v
+		}
+		item := lokiStreamAdapter{
+			Stream: entity.Fields,
+			Values: [][]string{{
+				strconv.FormatInt(entity.Timestamp.UnixNano(), 10),
+				entity.Content,
+			}},
+		}
+		req.Streams = append(req.Streams, item)
 	}
 
 	buf, err := json.Marshal(req)
@@ -170,8 +190,8 @@ func (h *LokiWriter) send(entries [][]string) {
 	}
 }
 
-func parseEntry(entry lokiEntry) lokiEntry {
-	var evt map[string]interface{}
+func (h *LokiWriter) parseEntry(entry lokiEntry) lokiEntry {
+	var evt map[string]any
 	d := json.NewDecoder(bytes.NewReader(entry.Line))
 	d.UseNumber()
 	if err := d.Decode(&evt); err != nil {
@@ -182,14 +202,20 @@ func parseEntry(entry lokiEntry) lokiEntry {
 	var buf bytes.Buffer
 	keys := make([]string, 0, len(evt))
 	for k := range evt {
-		switch k {
-		case "time":
+		switch {
+		case "time" == k:
 			if s, ok := evt["time"].(string); ok {
 				ts, err := time.Parse(s, time.RFC3339Nano)
 				if err == nil {
 					entry.Timestamp = ts
 				}
 			}
+		case lo.IndexOf(h.config.Fields, k) != -1:
+			if s, ok := evt[k].(string); ok {
+				entry.Fields[k] = s
+				continue
+			}
+			fallthrough
 		default:
 			keys = append(keys, k)
 		}
@@ -216,7 +242,7 @@ func parseEntry(entry lokiEntry) lokiEntry {
 			buf.Write(b)
 		}
 	}
-	entry.Content = buf.String()
+	entry.Content = strings.Trim(buf.String(), " ")
 
 	return entry
 }

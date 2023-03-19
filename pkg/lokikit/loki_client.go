@@ -14,6 +14,7 @@ type lokiClientConfig struct {
 	Labels             map[string]string
 	BatchWait          time.Duration
 	BatchEntriesNumber int
+	Fields             []string
 }
 
 // http.Client wrapper for adding new methods, particularly sendJsonReq
