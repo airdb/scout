@@ -7,10 +7,16 @@ import (
 	"github.com/airdb/scout/bootstrap"
 	discordmod "github.com/airdb/scout/modules/discord"
 	openaimod "github.com/airdb/scout/modules/openai"
+	"github.com/joho/godotenv"
 	"go.uber.org/fx"
 )
 
 func main() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+
 	app := fx.New(
 		openaimod.FxOptions(),
 		discordmod.FxOptions(),
