@@ -1,7 +1,6 @@
 package bootstrap
 
 import (
-	"context"
 	"log"
 
 	discordmod "github.com/airdb/scout/modules/discord"
@@ -129,12 +128,12 @@ func (d *Discord) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate
 	case "pong":
 		s.ChannelMessageSend(m.ChannelID, "Ping!")
 	default:
-		msg, err := d.deps.ChatGpt.GetResponse(context.TODO(), m.Content)
-		if err != nil {
-			log.Panicf("%s", err)
-		}
-		if len(msg) > 0 {
-			s.ChannelMessageSend(m.ChannelID, msg)
-		}
+		// msg, err := d.deps.ChatGpt.GetResponse(context.TODO(), m.Content)
+		// if err != nil {
+		// 	log.Panicf("%s", err)
+		// }
+		// if len(msg) > 0 {
+		// 	s.ChannelMessageSend(m.ChannelID, msg)
+		// }
 	}
 }
