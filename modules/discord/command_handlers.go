@@ -51,5 +51,4 @@ func CommandHandlers(deps commandHandlersDeps) map[string]func(s *discordgo.Sess
 			})
 		},
 	}
-
 }

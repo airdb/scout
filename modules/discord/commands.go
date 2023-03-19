@@ -18,7 +18,6 @@ var commands = []*discordgo.ApplicationCommand{
 		// of the command.
 		Description: "Chat with OpenAI",
 		Options: []*discordgo.ApplicationCommandOption{
-
 			{
 				Type:        discordgo.ApplicationCommandOptionString,
 				Name:        "prompt",
