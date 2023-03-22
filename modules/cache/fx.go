@@ -1,4 +1,4 @@
-package bootstrap
+package cachemod
 
 import (
 	"go.uber.org/fx"
@@ -6,7 +6,6 @@ import (
 
 func FxOptions() fx.Option {
 	return fx.Options(
-		fx.Provide(NewDiscord),
-		fx.Provide(NewWecom),
+		fx.Provide(NewRedis),
 	)
 }

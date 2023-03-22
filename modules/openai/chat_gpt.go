@@ -37,7 +37,7 @@ func (c *ChatGpt) GetResponse(ctx context.Context, question string) (string, err
 	if err != nil {
 		return "", err
 	}
-	return buf.String(), nil
+	return strings.Trim(buf.String(), "\n "), nil
 }
 
 // NullWriter is a writer on which all Write calls succeed
